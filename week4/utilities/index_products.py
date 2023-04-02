@@ -14,13 +14,17 @@ from pathlib import Path
 import requests
 import json
 
+from sentence_transformers import SentenceTransformer
 from time import perf_counter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.basicConfig(format='%(levelname)s:%(message)s')
 
-# IMPLEMENT ME: import the sentence transformers module!
+from sentence_transformers import SentenceTransformer
+
+logger.info("Creating Model")
+# IMPLEMENT ME: instantiate the sentence transformer model!
 
 # NOTE: this is not a complete list of fields.  If you wish to add more, put in the appropriate XPath expression.
 #TODO: is there a way to do this using XPath/XSL Functions so that we don't have to maintain a big list?
@@ -107,9 +111,10 @@ def get_opensearch():
 def index_file(file, index_name, reduced=False):
     logger.info("Creating Model")
     # IMPLEMENT ME: instantiate the sentence transformer model!
-    
+    model = SentenceTransformer('all-MiniLM-L6-v2')
+    print(model)
     logger.info("Ready to index")
-
+    model = SentenceTransformer('all-MiniLM-L6-v2')
     docs_indexed = 0
     client = get_opensearch()
     logger.info(f'Processing file : {file}')
@@ -129,18 +134,26 @@ def index_file(file, index_name, reduced=False):
             xpath_expr = mappings[idx]
             key = mappings[idx + 1]
             doc[key] = child.xpath(xpath_expr)
-        #print(doc)
+        # print(doc)
         if 'productId' not in doc or len(doc['productId']) == 0:
             continue
         if 'name' not in doc or len(doc['name']) == 0:
             continue
         if reduced and ('categoryPath' not in doc or 'Best Buy' not in doc['categoryPath'] or 'Movies & Music' in doc['categoryPath']):
             continue
+        names.append(doc['name'][0])
         docs.append({'_index': index_name, '_id':doc['sku'][0], '_source' : doc})
+        names.append(doc['name'][0])
         #docs.append({'_index': index_name, '_source': doc})
         docs_indexed += 1
         if docs_indexed % 200 == 0:
+            embedding = model.encode(names)
+            for i, doc in enumerate(docs):
+                doc['_source']['name_embedding'] = embedding[i]
             logger.info("Indexing")
+            embeddings = model.encode(names)
+            for i, j in enumerate(docs):
+                j["_source"]["name_embedding"] = embeddings[i]
             bulk(client, docs, request_timeout=60)
             logger.info(f'{docs_indexed} documents indexed')
             docs = []
@@ -151,7 +164,7 @@ def index_file(file, index_name, reduced=False):
     return docs_indexed
 
 @click.command()
-@click.option('--source_dir', '-s', default='/workspace/datasets/product_data/products'. help='XML files source directory')
+@click.option('--source_dir', '-s', default='/workspace/datasets/product_data/products', help='XML files source directory')
 @click.option('--index_name', '-i', default="bbuy_products", help="The name of the index to write to")
 @click.option('--reduced', is_flag=True, show_default=True, default=False, help="Removes music, movies, and merchandised products.")
 def main(source_dir: str, index_name: str, reduced: bool):
