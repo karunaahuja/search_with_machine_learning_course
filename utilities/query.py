@@ -225,25 +225,7 @@ def create_query(user_query, click_prior_query, filters, sort="_score", sortDir=
     if source is not None:  # otherwise use the default and retrieve all source
         query_obj["_source"] = source
     return query_obj
-
-def create_vector_query(user_query, size=10, sort="_score", sortDir="desc", source=None):
-    query_vector = model.encode(user_query)
-    query_obj = {
-        "size": size,
-        "sort": [
-            {sort: {"order": sortDir}}
-        ],
-        "query": {
-            "bool": {
-                "must": {"knn": {"embedding": {"vector": query_vector, "k": size}}}
-            }
-        },
-    }
-    if source is not None:  # otherwise use the default and retrieve all source
-        query_obj["_source"] = source
-    return query_obj
     
-
 def create_vector_query(user_query, size=10, sort="_score", sortDir="desc", source=None):
     query_vector = model.encode(user_query)
     query_obj = {
@@ -289,7 +271,6 @@ if __name__ == "__main__":
                          help='The OpenSearch port')
     general.add_argument('--user',
                          help='The OpenSearch admin.  If this is set, the program will prompt for password too. If not set, use default of admin/admin')
-    general.add_argument('--vector', default=False, action='store_true', help='Switch between field')
     general.add_argument('--query', help='User query')
     general.add_argument('--vector', action='store_true', help='Vector search flag')
     args = parser.parse_args()
